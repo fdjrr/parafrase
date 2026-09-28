@@ -1,0 +1,17 @@
+services:
+  app:
+    build: .
+    container_name: parafrase
+    restart: unless-stopped
+    environment:
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b}
+      LLM_API_KEY: ${LLM_API_KEY:-ollama}
+    ports:
+      - "${PORT:-3000}:3000"
+    networks:
+      - homelabs
+
+networks:
+  homelabs:
+    external: true

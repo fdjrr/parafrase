@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parafrase</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f2f4f3;
+    --surface: #ffffff;
+    --ink: #1b2421;
+    --muted: #64706b;
+    --line: #d5dbd8;
+    --accent: #0e6b5c;
+    --on-accent: #ffffff;
+    --ins-bg: #d3eedf;
+    --ins-ink: #0b4a33;
+    --del-bg: #f7d9d9;
+    --del-ink: #7a1f1f;
+    --warn-bg: #fdf1d6;
+    --warn-ink: #6b4a05;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101413;
+      --surface: #171c1a;
+      --ink: #e6ece9;
+      --muted: #91a09a;
+      --line: #2a332f;
+      --accent: #3fbfa5;
+      --on-accent: #06211b;
+      --ins-bg: #14382b;
+      --ins-ink: #b8ecd6;
+      --del-bg: #4a1e1e;
+      --del-ink: #f5c6c6;
+      --warn-bg: #3a2f10;
+      --warn-ink: #f1d98f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 20px 20px 40px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+  h1 { margin: 0; font-size: 1.25rem; font-weight: 650; letter-spacing: -0.01em; }
+  .model { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .9rem; }
+  select, input[type="text"] {
+    font: inherit; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px;
+  }
+  select { max-width: 240px; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 12px 28px; margin-bottom: 14px; }
+  .group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .group > span { color: var(--muted); font-size: .9rem; }
+  .seg { display: flex; flex-wrap: wrap; gap: 4px; }
+  .seg label { position: relative; }
+  .seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .seg label span {
+    display: block; padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--surface); font-size: .95rem;
+  }
+  .seg input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+  .seg input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  .panes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .panes { grid-template-columns: 1fr; } }
+  .pane {
+    display: flex; flex-direction: column; gap: 10px; padding: 14px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  }
+  .pane:focus-within { border-color: var(--accent); }
+  .title { color: var(--muted); font-size: .9rem; }
+  textarea {
+    width: 100%; min-height: 300px; resize: vertical; border: 0; outline: 0; padding: 0;
+    background: transparent; color: var(--ink); font: inherit;
+  }
+  .out { min-height: 300px; white-space: pre-wrap; overflow-wrap: anywhere; outline: 0; }
+  .empty { color: var(--muted); }
+  .frozen { display: flex; flex-direction: column; gap: 4px; }
+  .frozen label { color: var(--muted); font-size: .9rem; }
+  .frozen input { width: 100%; }
+
+  .bar { display: flex; align-items: center; gap: 8px; }
+  .bar .count { flex: 1; color: var(--muted); font-size: .875rem; }
+  button {
+    font: inherit; color: var(--ink); background: var(--surface); cursor: pointer;
+    border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px;
+  }
+  button:hover:not(:disabled) { border-color: var(--ink); }
+  button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+  button.primary:hover:not(:disabled) { border-color: var(--accent); filter: brightness(1.08); }
+
+  ins { background: var(--ins-bg); color: var(--ins-ink); text-decoration: none; border-radius: 3px; }
+  del { background: var(--del-bg); color: var(--del-ink); text-decoration: line-through; border-radius: 3px; }
+  .note, .error { padding: 8px 10px; border-radius: 6px; font-size: .9rem; }
+  .note { background: var(--warn-bg); color: var(--warn-ink); }
+  .error { background: var(--del-bg); color: var(--del-ink); }
+  .hint { margin: 14px 2px 0; color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Parafrase</h1>
+    <label class="model">Model <select id="model" aria-label="Model"></select></label>
+  </header>
+
+  <div class="controls">
+    <div class="group">
+      <span id="lblMode">Gaya</span>
+      <div class="seg" id="modes" role="radiogroup" aria-labelledby="lblMode"></div>
+    </div>
+    <div class="group">
+      <span id="lblLevel">Tingkat perubahan</span>
+      <div class="seg" id="levels" role="radiogroup" aria-labelledby="lblLevel"></div>
+    </div>
+  </div>
+
+  <div class="panes">
+    <section class="pane">
+      <label class="title" for="src">Teks asli</label>
+      <textarea id="src" placeholder="Tempel teks di sini"></textarea>
+      <div class="frozen">
+        <label for="frozen">Kata yang dijaga</label>
+        <input type="text" id="frozen" placeholder="Pisahkan dengan koma, mis. Laravel, PT Maju Jaya">
+      </div>
+      <div class="bar">
+        <span class="count" id="inCount">0 kata</span>
+        <button id="stop" type="button" hidden>Berhenti</button>
+        <button id="go" type="button" class="primary">Tulis ulang</button>
+      </div>
+    </section>
+
+    <section class="pane">
+      <span class="title" id="outTitle">Hasil</span>
+      <div class="out" id="out" tabindex="0" aria-labelledby="outTitle"><span class="empty">Hasil muncul di sini.</span></div>
+      <div class="note" id="note" role="status" hidden></div>
+      <div class="bar">
+        <span class="count" id="outCount"></span>
+        <button id="diff" type="button" disabled>Lihat perubahan</button>
+        <button id="copy" type="button" disabled>Salin</button>
+      </div>
+    </section>
+  </div>
+  <p class="hint">Ctrl/Cmd + Enter untuk menulis ulang. Teks diproses di komputermu lewat Ollama.</p>
+</div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const src = $('#src'), frozenEl = $('#frozen'), out = $('#out'), note = $('#note');
+  const go = $('#go'), stop = $('#stop'), diffBtn = $('#diff'), copyBtn = $('#copy');
+  const modelEl = $('#model'), outTitle = $('#outTitle'), inCount = $('#inCount'), outCount = $('#outCount');
+
+  const MODES = [['standard', 'Standar'], ['formal', 'Formal'], ['simple', 'Sederhana'], ['shorten', 'Ringkas'], ['expand', 'Kembangkan']];
+  const LEVELS = [['1', 'Sedikit'], ['2', 'Sedang'], ['3', 'Banyak']];
+
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('prf.' + k); return v === null ? d : v; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem('prf.' + k, v); } catch {} },
+  };
+
+  function buildSeg(el, name, items, saved) {
+    el.innerHTML = '';
+    const valid = items.some(([v]) => v === saved);
+    items.forEach(([value, label], i) => {
+      const l = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'radio'; input.name = name; input.value = value;
+      input.checked = valid ? value === saved : i === (name === 'level' ? 1 : 0);
+      input.addEventListener('change', () => store.set(name, value));
+      const span = document.createElement('span');
+      span.textContent = label;
+      l.append(input, span);
+      el.append(l);
+    });
+  }
+  const checked = (name) => document.querySelector(`input[name="${name}"]:checked`).value;
+
+  buildSeg($('#modes'), 'mode', MODES, store.get('mode', 'standard'));
+  buildSeg($('#levels'), 'level', LEVELS, store.get('level', '2'));
+  frozenEl.value = store.get('frozen', '');
+  frozenEl.addEventListener('input', () => store.set('frozen', frozenEl.value));
+
+  const words = (t) => (t.trim() ? t.trim().split(/\s+/).length : 0);
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  src.addEventListener('input', () => { inCount.textContent = words(src.value) + ' kata'; });
+
+  // Model
+  async function loadModels() {
+    let data = { models: [], default: '' };
+    try { data = await (await fetch('/api/models')).json(); } catch {}
+    const list = data.models.length ? data.models : (data.default ? [data.default] : []);
+    modelEl.innerHTML = '';
+    list.forEach((m) => modelEl.append(new Option(m, m)));
+    const saved = store.get('model', '');
+    modelEl.value = list.includes(saved) ? saved : (list.includes(data.default) ? data.default : (list[0] || ''));
+    if (data.error) setNote(data.error);
+  }
+  modelEl.addEventListener('change', () => store.set('model', modelEl.value));
+
+  // Kata yang dijaga: ganti dengan penanda {{n}} sebelum dikirim, kembalikan setelahnya
+  function mask(text, raw) {
+    const terms = [...new Set(raw.split(/[,\n]/).map((s) => s.trim()).filter((s) => s && !/^[\d{}\s]+$/.test(s)))]
+      .sort((a, b) => b.length - a.length);
+    const map = {};
+    let masked = text;
+    terms.forEach((t, i) => {
+      if (masked.includes(t)) { masked = masked.split(t).join('{{' + (i + 1) + '}}'); map[i + 1] = t; }
+    });
+    return { masked, map };
+  }
+  const restore = (text, map) => text.replace(/\{\{\s*(\d+)\s*\}\}/g, (m, n) => (map[n] !== undefined ? map[n] : m));
+  const clean = (raw) => raw
+    .replace(/<think>[\s\S]*?(<\/think>|$)/g, '')
+    .replace(/<\/?text>/g, '')
+    .trim();
+
+  // Diff per kata
+  function diffHTML(a, b) {
+    const A = a.split(/(\s+)/).filter(Boolean), B = b.split(/(\s+)/).filter(Boolean);
+    if (A.length > 2000 || B.length > 2000) return null;
+    const n = A.length, m = B.length, w = m + 1;
+    const L = new Uint16Array((n + 1) * w);
+    for (let i = n - 1; i >= 0; i--)
+      for (let j = m - 1; j >= 0; j--)
+        L[i * w + j] = A[i] === B[j] ? L[(i + 1) * w + j + 1] + 1 : Math.max(L[(i + 1) * w + j], L[i * w + j + 1]);
+    let i = 0, j = 0, html = '';
+    while (i < n && j < m) {
+      if (A[i] === B[j]) { html += esc(A[i]); i++; j++; }
+      else if (L[(i + 1) * w + j] >= L[i * w + j + 1]) { html += '<del>' + esc(A[i]) + '</del>'; i++; }
+      else { html += '<ins>' + esc(B[j]) + '</ins>'; j++; }
+    }
+    while (i < n) html += '<del>' + esc(A[i++]) + '</del>';
+    while (j < m) html += '<ins>' + esc(B[j++]) + '</ins>';
+    return html;
+  }
+
+  let ctrl = null, original = '', plain = '', showingDiff = false;
+
+  function setNote(msg) { note.textContent = msg || ''; note.hidden = !msg; }
+  function renderText(text) {
+    if (!text) { out.innerHTML = '<span class="empty">Hasil muncul di sini.</span>'; outCount.textContent = ''; return; }
+    out.textContent = text;
+    outCount.textContent = words(text) + ' kata';
+  }
+  function showError(msg) {
+    out.innerHTML = '';
+    const d = document.createElement('div');
+    d.className = 'error'; d.setAttribute('role', 'alert'); d.textContent = msg;
+    out.append(d);
+    outCount.textContent = '';
+  }
+  function setView(diff) {
+    showingDiff = diff;
+    outTitle.textContent = diff ? 'Perubahan' : 'Hasil';
+    diffBtn.textContent = diff ? 'Lihat hasil' : 'Lihat perubahan';
+  }
+  function setBusy(b) {
+    go.disabled = b; stop.hidden = !b;
+    go.textContent = b ? 'Menulis…' : 'Tulis ulang';
+    diffBtn.disabled = b || !plain; copyBtn.disabled = b || !plain;
+  }
+
+  async function run() {
+    const text = src.value.trim();
+    if (!text) { src.focus(); return; }
+    const { masked, map } = mask(text, frozenEl.value);
+    original = text; plain = '';
+    setNote(''); setView(false); renderText(''); setBusy(true);
+    ctrl = new AbortController();
+    let raw = '', failed = false;
+    try {
+      const res = await fetch('/api/rephrase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: masked, mode: checked('mode'), level: checked('level'), model: modelEl.value }),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || 'Server membalas ' + res.status + '.');
+      }
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let i;
+        while ((i = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, i).trim();
+          buf = buf.slice(i + 1);
+          if (!line.startsWith('data:')) continue;
+          const d = line.slice(5).trim();
+          if (d === '[DONE]') continue;
+          try {
+            const t = JSON.parse(d).choices?.[0]?.delta?.content;
+            if (t) { raw += t; renderText(restore(clean(raw), map)); }
+          } catch {}
+        }
+      }
+    } catch (e) {
+      if (e.name !== 'AbortError') { failed = true; showError(e.message); }
+    }
+
+    const cleaned = clean(raw);
+    plain = restore(cleaned, map);
+    if (!plain && !failed) showError('Model tidak mengembalikan teks. Coba model lain.');
+    if (plain) {
+      const lost = Object.keys(map).filter((n) => !new RegExp('\\{\\{\\s*' + n + '\\s*\\}\\}').test(cleaned));
+      if (lost.length) setNote('Kata yang dijaga hilang dari hasil: ' + lost.map((n) => map[n]).join(', ') + '. Tulis ulang lagi atau cek manual.');
+    }
+    ctrl = null;
+    setBusy(false);
+  }
+
+  go.addEventListener('click', run);
+  stop.addEventListener('click', () => ctrl && ctrl.abort());
+  src.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); run(); } });
+
+  diffBtn.addEventListener('click', () => {
+    if (!plain) return;
+    if (showingDiff) { setView(false); renderText(plain); return; }
+    const html = diffHTML(original, plain);
+    if (html === null) { setNote('Teks terlalu panjang untuk tampilan perubahan.'); return; }
+    out.innerHTML = html;
+    setView(true);
+  });
+
+  copyBtn.addEventListener('click', async () => {
+    if (!plain) return;
+    try {
+      await navigator.clipboard.writeText(plain);
+      copyBtn.textContent = 'Tersalin';
+      setTimeout(() => { copyBtn.textContent = 'Salin'; }, 1500);
+    } catch { setNote('Gagal menyalin. Blok teks hasil lalu salin manual.'); }
+  });
+
+  loadModels();
+})();
+</script>
+</body>
+</html>
